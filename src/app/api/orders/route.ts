@@ -67,9 +67,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Order must contain at least one item' }, { status: 400 });
     }
 
-    let orderType: 'PURCHASE' | 'QUOTATION' = 'PURCHASE';
+    let orderType: 'PURCHASE' | 'QUOTATION' | 'SALE' = 'PURCHASE';
     if (type) {
-      if (type !== 'PURCHASE' && type !== 'QUOTATION') {
+      if (type !== 'PURCHASE' && type !== 'QUOTATION' && type !== 'SALE') {
         return NextResponse.json({ error: 'Invalid order type' }, { status: 400 });
       }
       orderType = type;
@@ -106,18 +106,31 @@ export async function POST(request: Request) {
         const itemTotalPrice = qtyInBase * Number(product.basePrice);
         const pricePerOrdered = Number(product.basePrice) * factor;
 
-        if (Number(product.inventoryQuantity) < qtyInBase) {
-          throw new Error(`Insufficient stock for "${product.name}". Available: ${Number(product.inventoryQuantity)} ${product.baseUnit}, requested: ${qtyInBase.toFixed(4)} ${product.baseUnit} (${orderedQuantity} ${orderedUnit})`);
-        }
-
-        await tx.product.update({
-          where: { id: productId },
-          data: {
-            inventoryQuantity: {
-              decrement: qtyInBase,
+        if (orderType === 'PURCHASE') {
+          // BUY/Restock: Increment stock, no stock check needed
+          await tx.product.update({
+            where: { id: productId },
+            data: {
+              inventoryQuantity: {
+                increment: qtyInBase,
+              },
             },
-          },
-        });
+          });
+        } else {
+          // SELL (SALE / QUOTATION): Decrement stock, requires stock check
+          if (Number(product.inventoryQuantity) < qtyInBase) {
+            throw new Error(`Insufficient stock for "${product.name}". Available: ${Number(product.inventoryQuantity)} ${product.baseUnit}, requested: ${qtyInBase.toFixed(4)} ${product.baseUnit} (${orderedQuantity} ${orderedUnit})`);
+          }
+
+          await tx.product.update({
+            where: { id: productId },
+            data: {
+              inventoryQuantity: {
+                decrement: qtyInBase,
+              },
+            },
+          });
+        }
 
         orderItemsToCreate.push({
           productId: product.id,

@@ -20,6 +20,7 @@ enum Dimension {
 enum OrderType {
   PURCHASE
   QUOTATION
+  SALE
 }
 
 model User {

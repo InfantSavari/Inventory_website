@@ -34,35 +34,61 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     }
 
     const updatedOrder = await prisma.$transaction(async (tx: any) => {
-      // If transitioning to REJECTED, restore inventory
+      // If transitioning to REJECTED, restore/revert inventory
       if (status === 'REJECTED' && order.status !== 'REJECTED') {
         for (const item of order.items) {
-          await tx.product.update({
-            where: { id: item.productId },
-            data: {
-              inventoryQuantity: {
-                increment: item.quantityInBaseUnit,
+          if (order.type === 'PURCHASE') {
+            // Revert buy: decrement inventory
+            await tx.product.update({
+              where: { id: item.productId },
+              data: {
+                inventoryQuantity: {
+                  decrement: item.quantityInBaseUnit,
+                },
               },
-            },
-          });
+            });
+          } else {
+            // Revert sale: increment inventory
+            await tx.product.update({
+              where: { id: item.productId },
+              data: {
+                inventoryQuantity: {
+                  increment: item.quantityInBaseUnit,
+                },
+              },
+            });
+          }
         }
       }
 
-      // If transitioning AWAY from REJECTED, re-deduct inventory
+      // If transitioning AWAY from REJECTED, re-deduct/re-apply inventory changes
       if (order.status === 'REJECTED' && status !== 'REJECTED') {
         for (const item of order.items) {
-          const prod = await tx.product.findUnique({ where: { id: item.productId } });
-          if (!prod || Number(prod.inventoryQuantity) < Number(item.quantityInBaseUnit)) {
-            throw new Error(`Insufficient stock for "${prod?.name || 'Product'}" to reopen this order`);
-          }
-          await tx.product.update({
-            where: { id: item.productId },
-            data: {
-              inventoryQuantity: {
-                decrement: item.quantityInBaseUnit,
+          if (order.type === 'PURCHASE') {
+            // Re-apply buy: increment inventory
+            await tx.product.update({
+              where: { id: item.productId },
+              data: {
+                inventoryQuantity: {
+                  increment: item.quantityInBaseUnit,
+                },
               },
-            },
-          });
+            });
+          } else {
+            // Re-apply sale: decrement inventory (requires stock check!)
+            const prod = await tx.product.findUnique({ where: { id: item.productId } });
+            if (!prod || Number(prod.inventoryQuantity) < Number(item.quantityInBaseUnit)) {
+              throw new Error(`Insufficient stock for "${prod?.name || 'Product'}" to reopen this order`);
+            }
+            await tx.product.update({
+              where: { id: item.productId },
+              data: {
+                inventoryQuantity: {
+                  decrement: item.quantityInBaseUnit,
+                },
+              },
+            });
+          }
         }
       }
 

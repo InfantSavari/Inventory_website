@@ -42,6 +42,19 @@ export default function SellerPage() {
   // Toast Notification state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
+  // Transaction Mode State
+  const [transactionMode, setTransactionMode] = useState<'BUY' | 'SELL'>('SELL');
+
+  const handleTransactionModeChange = (mode: 'BUY' | 'SELL') => {
+    if (cart.length > 0) {
+      if (!window.confirm('Changing transaction mode will clear your current basket. Do you want to proceed?')) {
+        return;
+      }
+      setCart([]);
+    }
+    setTransactionMode(mode);
+  };
+
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
@@ -143,7 +156,7 @@ export default function SellerPage() {
       const totalInCartBase = existingInCart.reduce((sum, item) => sum + item.quantityInBaseUnit, 0);
       const remainingInventory = Number(product.inventoryQuantity) - totalInCartBase;
 
-      if (qtyInBase > remainingInventory) {
+      if (transactionMode === 'SELL' && qtyInBase > remainingInventory) {
         showToast(`Insufficient stock for "${product.name}". Available: ${remainingInventory.toFixed(4)} ${product.baseUnit}, requested: ${qtyInBase.toFixed(4)} ${product.baseUnit}`, 'error');
         return;
       }
@@ -190,7 +203,7 @@ export default function SellerPage() {
     showToast(`Removed ${item.product.name} from cart`, 'success');
   };
 
-  const handleCheckout = async (orderType: 'PURCHASE' | 'QUOTATION') => {
+  const handleCheckout = async (orderType: 'PURCHASE' | 'QUOTATION' | 'SALE') => {
     if (cart.length === 0) return;
 
     try {
@@ -214,9 +227,14 @@ export default function SellerPage() {
         throw new Error(data.error || 'Failed to place order');
       }
 
-      const successMsg = orderType === 'PURCHASE'
-        ? `Direct Purchase ${data.order.orderNumber} placed successfully!`
-        : `Sales Quotation ${data.order.orderNumber} submitted successfully!`;
+      let successMsg = '';
+      if (orderType === 'PURCHASE') {
+        successMsg = `Purchase Order (Restock) ${data.order.orderNumber} placed successfully!`;
+      } else if (orderType === 'SALE') {
+        successMsg = `Direct Sale ${data.order.orderNumber} placed successfully!`;
+      } else {
+        successMsg = `Sales Quotation ${data.order.orderNumber} submitted successfully!`;
+      }
 
       showToast(successMsg, 'success');
       setCart([]);
@@ -251,8 +269,28 @@ export default function SellerPage() {
           <div>
             <h1>Product Catalog & Ordering</h1>
             <p>
-              Search items, see real-time price conversions, and add them to your basket to purchase directly or request a quotation.
+              {transactionMode === 'BUY'
+                ? 'Search items, see real-time price conversions, and add them to your basket to restock inventory.'
+                : 'Search items, see real-time price conversions, and add them to your basket to purchase directly or request a quotation.'}
             </p>
+          </div>
+          <div style={{ display: 'inline-flex', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '0.25rem', gap: '0.25rem' }}>
+            <button
+              id="mode-sell-btn"
+              onClick={() => handleTransactionModeChange('SELL')}
+              className={transactionMode === 'SELL' ? 'btn' : 'btn-secondary'}
+              style={{ padding: '0.4rem 1rem', fontSize: '0.85rem', border: 'none' }}
+            >
+              Sell (Sales)
+            </button>
+            <button
+              id="mode-buy-btn"
+              onClick={() => handleTransactionModeChange('BUY')}
+              className={transactionMode === 'BUY' ? 'btn' : 'btn-secondary'}
+              style={{ padding: '0.4rem 1rem', fontSize: '0.85rem', border: 'none' }}
+            >
+              Buy (Restock)
+            </button>
           </div>
         </div>
 
@@ -292,7 +330,7 @@ export default function SellerPage() {
               const live = getLivePreview(p);
               const productInput = inputs[p.id] || { qty: '1', unit: p.baseUnit };
               const availableQty = Number(p.inventoryQuantity);
-              const isOutOfStock = availableQty <= 0;
+              const isOutOfStock = transactionMode === 'SELL' && availableQty <= 0;
 
               return (
                 <div key={p.id} className="glass-card catalog-card">
@@ -379,7 +417,7 @@ export default function SellerPage() {
                           onClick={() => addToCart(p)}
                           style={{ width: '100%', padding: '0.5rem' }}
                         >
-                          Add to Basket
+                          {transactionMode === 'BUY' ? 'Add to Buy Basket' : 'Add to Sell Basket'}
                         </button>
                       </div>
                     )}
@@ -402,7 +440,9 @@ export default function SellerPage() {
             <div style={{ textAlign: 'center', padding: '2rem 0', color: 'var(--text-muted)' }}>
               <p>Your basket is empty.</p>
               <p style={{ fontSize: '0.75rem', marginTop: '0.5rem' }}>
-                Select products on the left and add them to place a purchase or submit a quotation.
+                {transactionMode === 'BUY'
+                  ? 'Select products on the left and add them to restock inventory.'
+                  : 'Select products on the left and add them to place a purchase or submit a quotation.'}
               </p>
             </div>
           ) : (
@@ -453,21 +493,33 @@ export default function SellerPage() {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <button
-                  id="direct-purchase-btn"
-                  onClick={() => handleCheckout('PURCHASE')}
-                  style={{ width: '100%', padding: '0.75rem', backgroundColor: 'var(--color-success)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: '600', cursor: 'pointer' }}
-                >
-                  Place Direct Purchase
-                </button>
-                <button
-                  id="submit-quotation-btn"
-                  onClick={() => handleCheckout('QUOTATION')}
-                  className="btn-secondary"
-                  style={{ width: '100%', padding: '0.75rem', fontWeight: '600' }}
-                >
-                  Submit Sales Quotation
-                </button>
+                {transactionMode === 'BUY' ? (
+                  <button
+                    id="place-purchase-btn"
+                    onClick={() => handleCheckout('PURCHASE')}
+                    style={{ width: '100%', padding: '0.75rem', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: '600', cursor: 'pointer' }}
+                  >
+                    Place Purchase Order (Restock)
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      id="direct-sale-btn"
+                      onClick={() => handleCheckout('SALE')}
+                      style={{ width: '100%', padding: '0.75rem', backgroundColor: 'var(--color-success)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: '600', cursor: 'pointer' }}
+                    >
+                      Place Direct Sale
+                    </button>
+                    <button
+                      id="submit-quotation-btn"
+                      onClick={() => handleCheckout('QUOTATION')}
+                      className="btn-secondary"
+                      style={{ width: '100%', padding: '0.75rem', fontWeight: '600' }}
+                    >
+                      Submit Sales Quotation
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           )}

@@ -24,7 +24,7 @@ interface Order {
   orderNumber: string;
   userId: string;
   status: 'PENDING' | 'APPROVED' | 'COMPLETED' | 'REJECTED';
-  type: 'PURCHASE' | 'QUOTATION';
+  type: 'PURCHASE' | 'SALE' | 'QUOTATION';
   totalAmount: number;
   createdAt: string;
   user: {
@@ -161,8 +161,8 @@ export default function AdminOrdersPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <h2 style={{ margin: 0, fontSize: '1.2rem', fontFamily: 'monospace' }}>{order.orderNumber}</h2>
                     <span className={`badge ${getStatusBadgeClass(order.status)}`}>{order.status}</span>
-                    <span className={`badge ${order.type === 'PURCHASE' ? 'badge-success' : 'badge-primary'}`} style={{ fontSize: '0.75rem' }}>
-                      {order.type === 'PURCHASE' ? 'Direct Purchase' : 'Sales Quotation'}
+                    <span className={`badge ${order.type === 'PURCHASE' ? 'badge-primary' : order.type === 'SALE' ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '0.75rem' }}>
+                      {order.type === 'PURCHASE' ? 'Buy Order (Purchase)' : order.type === 'SALE' ? 'Direct Sale' : 'Sales Quotation'}
                     </span>
                   </div>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
@@ -238,7 +238,7 @@ export default function AdminOrdersPage() {
 
               <div className="checkout-section">
                 <span className="total-label">
-                  {order.type === 'PURCHASE' ? 'Total Purchase Value:' : 'Total Quotation Value:'}
+                  {order.type === 'PURCHASE' ? 'Total Buy Value:' : order.type === 'SALE' ? 'Total Sale Value:' : 'Total Quotation Value:'}
                 </span>
                 <span className="total-amount">{formatCurrency(Number(order.totalAmount))}</span>
               </div>
