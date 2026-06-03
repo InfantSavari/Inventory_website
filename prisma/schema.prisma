@@ -1,0 +1,83 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum Dimension {
+  WEIGHT
+  VOLUME
+  COUNT
+}
+
+enum OrderType {
+  PURCHASE
+  QUOTATION
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  role         Role     @default(USER)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  orders       Order[]
+
+  @@map("users")
+}
+
+model Product {
+  id                String      @id @default(uuid()) @db.Uuid
+  sku               String      @unique
+  name              String
+  description       String?
+  category          String?
+  dimension         Dimension
+  baseUnit          String      @map("base_unit")
+  basePrice         Decimal     @map("base_price") @db.Decimal(20, 8)
+  inventoryQuantity Decimal     @map("inventory_quantity") @db.Decimal(20, 8)
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  orderItems        OrderItem[]
+
+  @@map("products")
+}
+
+model Order {
+  id          String      @id @default(uuid()) @db.Uuid
+  orderNumber String      @unique @map("order_number")
+  userId      String      @map("user_id") @db.Uuid
+  user        User        @relation(fields: [userId], references: [id])
+  status      String      @default("PENDING")
+  type        OrderType   @default(PURCHASE)
+  totalAmount Decimal     @map("total_amount") @db.Decimal(20, 8)
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  items       OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id                  String   @id @default(uuid()) @db.Uuid
+  orderId             String   @map("order_id") @db.Uuid
+  order               Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId           String   @map("product_id") @db.Uuid
+  product             Product  @relation(fields: [productId], references: [id])
+  orderedUnit         String   @map("ordered_unit")
+  orderedQuantity     Decimal  @map("ordered_quantity") @db.Decimal(20, 8)
+  quantityInBaseUnit   Decimal  @map("quantity_in_base_unit") @db.Decimal(20, 8)
+  pricePerOrderedUnit Decimal  @map("price_per_ordered_unit") @db.Decimal(20, 8)
+  totalPrice          Decimal  @map("total_price") @db.Decimal(20, 8)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("order_items")
+}
