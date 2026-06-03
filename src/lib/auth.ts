@@ -1,7 +1,11 @@
 import { SignJWT, jwtVerify } from 'jose';
 
 const JWT_SECRET = new TextEncoder().encode(
+<<<<<<< HEAD
   process.env.JWT_SECRET || 'default-super-secret-key-for-local-dev-1234567890'
+=======
+  process.env.JWT_SECRET
+>>>>>>> 3d643e1 (unit Conversion is done)
 );
 
 export interface JWTPayload {
@@ -15,7 +19,7 @@ export async function signJWT(payload: JWTPayload): Promise<string> {
   return await new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('24h')
+    .setExpirationTime('2h')
     .sign(JWT_SECRET);
 }
 
